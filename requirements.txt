@@ -1,0 +1,46 @@
+# =============================================================================
+# CORE DEPENDENCIES - Thư viện cốt lõi
+# =============================================================================
+
+# Basic scientific computing / Tính toán khoa học cơ bản
+numpy>=1.23.0,<1.25.0
+scipy>=1.10.0
+numba>=0.58.0
+
+# Audio processing / Xử lý âm thanh
+librosa>=0.10.0
+soundfile>=0.13.0
+resampy>=0.4.0
+
+# =============================================================================
+# MACHINE LEARNING & AI - Học máy và trí tuệ nhân tạo  
+# =============================================================================
+
+# Deep learning frameworks / Framework học sâu
+torch>=1.10.0
+tensorflow>=2.8.0
+
+# Audio source separation / Tách nguồn âm thanh AI
+spleeter>=2.4.0
+
+# =============================================================================
+# MEDIA PROCESSING - Xử lý đa phương tiện
+# =============================================================================
+
+# Video processing / Xử lý video
+opencv-python>=4.7.0
+moviepy>=1.0.0
+ffmpeg-python>=0.2.0
+
+# Visualization and plotting / Vẽ biểu đồ và trực quan hóa
+matplotlib>=3.5.0
+
+# =============================================================================
+# UTILITIES - Tiện ích
+# =============================================================================
+
+# File operations / Thao tác file
+glob2>=0.7
+
+# Date and time utilities / Tiện ích ngày tháng
+python-dateutil>=2.8.0
