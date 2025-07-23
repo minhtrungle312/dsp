@@ -42,11 +42,6 @@ class DSPConfiguration:
                 'low_pass_freq': 8000,     # Tần số low-pass filter (Hz)
                 'normalize_input': True    # Có chuẩn hóa đầu vào không
             },
-            'postprocessing': {
-                'normalization_target_db': -23,  # Mức âm thanh đích (dB)
-                'dithering': True,               # Có thêm dithering không
-                'final_limiter': True            # Có giới hạn cuối không
-            }
         }
         
         # Cấu hình STFT - Short-Time Fourier Transform

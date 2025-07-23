@@ -24,7 +24,6 @@ from scipy.signal import butter, sosfilt
 # Import processing components
 from core.dsp_processor import AdvancedDSPProcessor
 from processors.spleeter_processor import SpleeterProcessor
-from processors.post_processor import EnhancedPostProcessor
 from utils.audio_utils import AudioUtils
 
 
@@ -53,7 +52,6 @@ class FancamVoiceEnhancer:
         # Initialize processing components
         self.dsp_processor = AdvancedDSPProcessor(config)
         self.spleeter_processor = SpleeterProcessor(stems='spleeter:2stems-16kHz')
-        self.post_processor = EnhancedPostProcessor(config)
         self.audio_utils = AudioUtils()\
     
     def extract_audio_from_video(self, video_path: str, temp_audio_path: str) -> dict:
@@ -156,16 +154,12 @@ class FancamVoiceEnhancer:
             # Export original audio at the start
             import datetime
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.dsp_processor._export_step_audio(audio, "00_original_extracted_from_video", timestamp)
+            self.dsp_processor._export_step_audio(audio, "Original_extracted_from_video", timestamp)
             
-            # Phase 1: Enhanced Pre-processing (8-Step DSP Pipeline)
-            print("\n  🔧 Phase 1: Enhanced Pre-processing (8-Step DSP Pipeline)")
-            print("    Pipeline: Extract → Initial Process → Spectral Analysis → Spectral Sub → Wiener → Harmonic → Gate → Compress")
+            # Phase 1: DSP
             preprocessed_audio = self.dsp_processor.dsp_preprocess(audio)
             
             # Phase 2: AI-powered vocal separation
-            print("\n  Phase 2: AI-powered vocal separation...")
-            
             # Create temporary file for Spleeter (it needs a file path)
             import tempfile
             import soundfile as sf
@@ -199,8 +193,6 @@ class FancamVoiceEnhancer:
                     if not separated_audio:
                         separated_audio = None
                     else:
-                        print(f"    AI separation completed successfully")
-                        
                         # Export AI-separated components
                         import datetime
                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -214,97 +206,31 @@ class FancamVoiceEnhancer:
                 # Clean up temporary file
                 if os.path.exists(temp_audio_path):
                     os.remove(temp_audio_path)
-            
-            if separated_audio is None:
-                # Fallback to DSP-only processing
-                print("  Spleeter failed, using DSP-only processing...")
-                print("  🔄 Switching to comprehensive DSP pipeline...")
+            # Phase 3: Audio Reconstruction
+            print("\n  Phase 3: Audio Reconstruction...")
+            reconstruction_result = self.reconstruct_audio_from_ai(
+                preprocessed_audio, separated_audio, sr
+            )
                 
-                # Generate timestamp for DSP-only session
-                import datetime
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            if not reconstruction_result['success']:
+                return {
+                    'success': False,
+                    'error': reconstruction_result['error'],
+                    'enhancement_time': time.time() - start_time
+                }
                 
-                # Export preprocessed audio for DSP
-                self.dsp_processor._export_step_audio(preprocessed_audio, "dsp_only_preprocessed_input", timestamp)
+            reconstructed_audio = reconstruction_result['reconstructed_audio']
                 
-                # Use full DSP processing instead of just process_audio
-                dsp_result = self.dsp_processor.process(preprocessed_audio)
-                
-                if dsp_result is not None:
-                    enhanced_audio = dsp_result['enhanced_audio']
-                    
-                    # Export additional DSP intermediate results
-                    if 'intermediate_results' in dsp_result:
-                        intermediates = dsp_result['intermediate_results']
-                        
-                        # Export key intermediate steps
-                        if 'spectral_subtracted' in intermediates:
-                            # Reconstruct audio from magnitude
-                            if 'original_phase' in dsp_result:
-                                spectral_audio = librosa.istft(
-                                    intermediates['spectral_subtracted'] * np.exp(1j * dsp_result['original_phase']),
-                                    hop_length=self.dsp_processor.hop_length
-                                )
-                                self.dsp_processor._export_step_audio(spectral_audio, "dsp_spectral_subtracted", timestamp)
-                        
-                        if 'wiener_filtered' in intermediates:
-                            # Reconstruct audio from magnitude  
-                            if 'original_phase' in dsp_result:
-                                wiener_audio = librosa.istft(
-                                    intermediates['wiener_filtered'] * np.exp(1j * dsp_result['original_phase']),
-                                    hop_length=self.dsp_processor.hop_length
-                                )
-                                self.dsp_processor._export_step_audio(wiener_audio, "dsp_wiener_filtered", timestamp)
-                        
-                        if 'harmonic_enhanced' in intermediates:
-                            # Reconstruct audio from magnitude
-                            if 'original_phase' in dsp_result:
-                                harmonic_audio = librosa.istft(
-                                    intermediates['harmonic_enhanced'] * np.exp(1j * dsp_result['original_phase']),
-                                    hop_length=self.dsp_processor.hop_length
-                                )
-                                self.dsp_processor._export_step_audio(harmonic_audio, "dsp_harmonic_enhanced", timestamp)
-                        
-                        if 'noise_gated' in intermediates:
-                            self.dsp_processor._export_step_audio(intermediates['noise_gated'], "dsp_noise_gated", timestamp)
-                    
-                    self.dsp_processor._export_step_audio(enhanced_audio, "dsp_only_final_enhanced", timestamp)
-                else:
-                    enhanced_audio = preprocessed_audio  # Fallback to preprocessed
-                
-                # Light post-processing for fallback
-                final_audio = self.post_processor.process(enhanced_audio)
-                self.dsp_processor._export_step_audio(final_audio, "dsp_only_post_processed", timestamp)
-                
-                print("  ✓ DSP-only processing completed with comprehensive exports")
-                
-            else:
-                # Phase 3: Audio Reconstruction
-                print("\n  Phase 3: Audio Reconstruction...")
-                reconstruction_result = self.reconstruct_audio_from_ai(
-                    preprocessed_audio, separated_audio, sr
-                )
-                
-                if not reconstruction_result['success']:
-                    return {
-                        'success': False,
-                        'error': reconstruction_result['error'],
-                        'enhancement_time': time.time() - start_time
-                    }
-                
-                reconstructed_audio = reconstruction_result['reconstructed_audio']
-                
-                # Export reconstructed audio step
-                import datetime
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                self.dsp_processor._export_step_audio(reconstructed_audio, "03_ai_reconstructed", timestamp)
-                
-                # export video)
-                
-                final_audio = reconstructed_audio
-                
-                # Export final enhanced audio step
-                self.dsp_processor._export_step_audio(final_audio, "04_ai_final_enhanced", timestamp)
+            # Export reconstructed audio step
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.dsp_processor._export_step_audio(reconstructed_audio, "03_ai_reconstructed", timestamp)
+
+            # export video
+            final_audio = reconstructed_audio
+
+            # Export final enhanced audio step
+            self.dsp_processor._export_step_audio(final_audio, "04_ai_final_enhanced", timestamp)
             
             enhancement_time = time.time() - start_time
             
@@ -509,165 +435,110 @@ class FancamVoiceEnhancer:
             except:
                 pass  # Ignore cleanup errors
     
-    def apply_noise_gate(self, audio: np.ndarray, threshold_db: float, ratio: float) -> np.ndarray:
-        """Apply noise gate to audio signal"""
-        try:
-            # Convert to dB
-            audio_db = 20 * np.log10(np.abs(audio) + 1e-10)
-            
-            # Create gate mask
-            gate_mask = np.where(audio_db > threshold_db, 1.0, 1.0/ratio)
-            
-            # Apply gate
-            gated_audio = audio * gate_mask
-            
-            return gated_audio
-        except Exception as e:
-            print(f"    Warning: Noise gate failed: {e}")
-            return audio
 
-    def reconstruct_audio_from_ai(self, original_audio: np.ndarray, separated_audio: dict, 
-                                 sr: int) -> dict:
-        """
-        Phase 3: Audio Reconstruction (AI Output → ISTFT → Clean Audio Signal)
-        
-        Args:
-            original_audio: Original audio signal
-            separated_audio: AI separated audio (vocals + accompaniment)
-            sr: Sample rate
-            
-        Returns:
-            dict: Reconstructed audio result
-        """
-        start_time = time.time()
-        
+    def reconstruct_audio_from_ai(self, original_audio: np.ndarray, separated_audio: dict, sr: int) -> dict:
         try:
-            print("  Phase 3: Audio Reconstruction (AI Output → ISTFT → Clean Audio)...")
-            
-            # Generate timestamp for this session
+            # Tạo timestamp cho tất cả file export
             import datetime
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # Get separated components - ensure they are numpy arrays
+            # Bước 1: Extract vocals và accompaniment
             vocals = separated_audio.get('vocals', original_audio)
             accompaniment = separated_audio.get('accompaniment', np.zeros_like(original_audio))
             
-            # Validate that vocals and accompaniment are numpy arrays
-            if not isinstance(vocals, np.ndarray):
-                raise TypeError(f"Vocals data must be numpy.ndarray, got {type(vocals)}")
-            if not isinstance(accompaniment, np.ndarray):
-                raise TypeError(f"Accompaniment data must be numpy.ndarray, got {type(accompaniment)}")
+            # Export step 1
+            self.dsp_processor._export_step_audio(vocals, f"reconstruct_01_extracted_vocals", timestamp)
+            self.dsp_processor._export_step_audio(accompaniment, f"reconstruct_01_extracted_accompaniment", timestamp)
             
-            # Ensure vocals and accompaniment have the same length as original
+            # Bước 2: Validation & length sync
+            if not isinstance(vocals, np.ndarray):
+                raise TypeError(f"Vocals must be numpy.ndarray, got {type(vocals)}")
+            
+            # Sync lengths for vocals
             if len(vocals) != len(original_audio):
                 if len(vocals) > len(original_audio):
                     vocals = vocals[:len(original_audio)]
                 else:
                     vocals = np.pad(vocals, (0, len(original_audio) - len(vocals)))
-                print(f"    Vocals length adjusted to {len(vocals)}")
-                
+            
+            # Sync lengths for accompaniment  
             if len(accompaniment) != len(original_audio):
                 if len(accompaniment) > len(original_audio):
                     accompaniment = accompaniment[:len(original_audio)]
                 else:
                     accompaniment = np.pad(accompaniment, (0, len(original_audio) - len(accompaniment)))
-                print(f"    Accompaniment length adjusted to {len(accompaniment)}")
             
-            print(f"    Original audio shape: {original_audio.shape}")
-            print(f"    Vocals shape: {vocals.shape}")  
-            print(f"    Accompaniment shape: {accompaniment.shape}")
+            # Export step 2 (sau khi sync length)
+            self.dsp_processor._export_step_audio(vocals, f"reconstruct_02_synced_vocals", timestamp)
+            self.dsp_processor._export_step_audio(accompaniment, f"reconstruct_02_synced_accompaniment", timestamp)
             
-            # Export AI separated vocals and accompaniment
-            self.dsp_processor._export_step_audio(vocals, "AI_separated_vocals", timestamp)
-            self.dsp_processor._export_step_audio(accompaniment, "AI_separated_accompaniment", timestamp)
+            # Bước 3: Tính RMS và threshold
+            vocals_rms = np.sqrt(np.mean(vocals**2))
+            gate_threshold = max(vocals_rms * 0.01, vocals_rms * 0.02, 0.0001)
             
-            # Step 1: Create vocal mask from AI output
-            print("    3.1: Creating vocal mask from AI output...")
+            print(f"    Reconstruct Debug - Vocals RMS: {vocals_rms:.6f}, Gate threshold: {gate_threshold:.6f}")
             
-            # Calculate spectrograms
-            original_stft = librosa.stft(original_audio, n_fft=2048, hop_length=512)
-            vocals_stft = librosa.stft(vocals, n_fft=2048, hop_length=512)
+            # Bước 4: Apply Noise Gate
+            gated_vocals = np.where(np.abs(vocals) > gate_threshold, vocals, 0.0)
             
-            # Create vocal mask based on AI separation
-            vocal_mask = np.abs(vocals_stft) / (np.abs(original_stft) + 1e-10)
-            vocal_mask = np.clip(vocal_mask, 0, 1)  # Ensure mask is between 0 and 1
+            # Export step 4 (sau noise gate)
+            self.dsp_processor._export_step_audio(gated_vocals, f"reconstruct_04_gated_vocals", timestamp)
             
-            # Step 2: Apply vocal mask to original spectrogram
-            print("    3.2: Applying vocal mask to original spectrogram...")
+            # Debug info về noise gate
+            below_threshold = np.sum(np.abs(vocals) <= gate_threshold)
+            print(f"    Reconstruct Debug - Samples below threshold: {below_threshold}/{len(vocals)} ({100*below_threshold/len(vocals):.1f}%)")
             
-            # Enhanced vocal spectrogram
-            enhanced_vocal_stft = original_stft * vocal_mask
+            # Bước 5: Audio Mixing
+            reconstructed_audio = gated_vocals * 0.9 + accompaniment * 0.1
             
-            # Step 3: Inverse STFT to create clean audio signal
-            print("    3.3: Inverse STFT to create clean audio signal...")
+            # Export step 5 (sau mixing)
+            self.dsp_processor._export_step_audio(reconstructed_audio, f"reconstruct_05_mixed_audio", timestamp)
             
-            try:
-                # Check spectrogram properties before ISTFT
-                print(f"      Enhanced vocal STFT shape: {enhanced_vocal_stft.shape}")
-                print(f"      Enhanced vocal STFT dtype: {enhanced_vocal_stft.dtype}")
+            # Bước 6: RMS Normalization
+            original_rms = np.sqrt(np.mean(original_audio**2))
+            current_rms = np.sqrt(np.mean(reconstructed_audio**2))
+            
+            print(f"    Reconstruct Debug - Original RMS: {original_rms:.6f}, Current RMS: {current_rms:.6f}")
+            
+            if current_rms > 0 and original_rms > 0:
+                ratio = current_rms / original_rms
+                print(f"    Reconstruct Debug - RMS ratio: {ratio:.3f}")
                 
-                # Ensure the spectrogram is valid
-                if np.any(np.isnan(enhanced_vocal_stft)) or np.any(np.isinf(enhanced_vocal_stft)):
-                    print("      Warning: Invalid values in spectrogram, using original vocals")
-                    clean_vocals = vocals
-                else:
-                    # Reconstruct audio using inverse STFT with proper parameters
-                    clean_vocals = librosa.istft(
-                        enhanced_vocal_stft, 
-                        hop_length=512, 
-                        length=len(original_audio)  # Ensure same length
-                    )
-                    print(f"      ✓ ISTFT successful, clean vocals shape: {clean_vocals.shape}")
+                if ratio < 0.5 or ratio > 2.0:
+                    target_rms = original_rms * 0.95
+                    normalization_gain = target_rms / current_rms
+                    reconstructed_audio = reconstructed_audio * normalization_gain
+                    print(f"    Reconstruct Debug - Applied normalization gain: {normalization_gain:.3f}")
                     
-                    # Export clean vocals after ISTFT
-                    self.dsp_processor._export_step_audio(clean_vocals, "clean_vocals_after_ISTFT", timestamp)
-                    
-            except Exception as istft_error:
-                print(f"      Warning: ISTFT failed ({istft_error}), using original vocals")
-                clean_vocals = vocals
+                    # Export step 6a (sau normalization)
+                    self.dsp_processor._export_step_audio(reconstructed_audio, f"reconstruct_06a_normalized_audio", timestamp)
             
-            # Ensure clean_vocals has same length as original
-            if len(clean_vocals) != len(original_audio):
-                if len(clean_vocals) > len(original_audio):
-                    clean_vocals = clean_vocals[:len(original_audio)]
-                else:
-                    # Pad with zeros if too short
-                    clean_vocals = np.pad(clean_vocals, (0, len(original_audio) - len(clean_vocals)))
+            # Bước 7: Clipping Prevention
+            max_val = np.max(np.abs(reconstructed_audio))
+            print(f"    Reconstruct Debug - Max value before clipping: {max_val:.6f}")
             
-            # Step 4: Noise gating + compression
-            print("    3.4: Noise gating + compression...")
+            if max_val > 0.9:
+                reconstructed_audio_before_clipping = reconstructed_audio.copy()
+                reconstructed_audio = np.tanh(reconstructed_audio * 0.9) * 0.8
+                print(f"    Reconstruct Debug - Applied soft clipping")
+                
+                # Export step 7a (trước khi clipping)
+                self.dsp_processor._export_step_audio(reconstructed_audio_before_clipping, f"reconstruct_07a_before_clipping", timestamp)
             
-            # Noise gate parameters
-            gate_threshold = -35  # dB
-            gate_ratio = 10
+            # Export final result
+            self.dsp_processor._export_step_audio(reconstructed_audio, f"reconstruct_07_final_result", timestamp)
             
-            # Apply noise gate
-            gated_vocals = self.apply_noise_gate(clean_vocals, gate_threshold, gate_ratio)
-            self.dsp_processor._export_step_audio(gated_vocals, "gated_vocals", timestamp)
-            
-            # Apply compression
-            compressed_vocals = self.apply_compression(gated_vocals, ratio=3.0, threshold=-12)
-            self.dsp_processor._export_step_audio(compressed_vocals, "compressed_vocals", timestamp)
-            
-            # Mix with accompaniment
-            reconstructed_audio = compressed_vocals * 0.8 + accompaniment * 0.2
-            self.dsp_processor._export_step_audio(reconstructed_audio, "reconstructed_mixed_audio", timestamp)
-            
-            reconstruction_time = time.time() - start_time
-            
-            print(f"    ✓ Audio reconstruction completed ({reconstruction_time:.2f}s)")
+            # Final debug info
+            final_rms = np.sqrt(np.mean(reconstructed_audio**2))
+            final_max = np.max(np.abs(reconstructed_audio))
+            print(f"    Reconstruct Debug - Final RMS: {final_rms:.6f}, Final Max: {final_max:.6f}")
             
             return {
                 'success': True,
                 'reconstructed_audio': reconstructed_audio,
-                'clean_vocals': compressed_vocals,
-                'vocal_mask': vocal_mask,
-                'reconstruction_time': reconstruction_time
+                'clean_vocals': gated_vocals
             }
             
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Audio reconstruction failed: {str(e)}',
-                'reconstruction_time': time.time() - start_time
-            }
+            print(f"    Reconstruct Error: {str(e)}")
+            return {'success': False, 'error': str(e)}

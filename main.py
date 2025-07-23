@@ -147,7 +147,7 @@ def interactive_mode():
             print(f"2. Exit")
             print(f"{'-'*30}")
             
-            choice = input("Select option").strip()
+            choice = input("Select option:").strip()
             
             if choice == "1":
                 # Process video
