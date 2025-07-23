@@ -100,13 +100,6 @@ def process_fancam_video(input_path: str, output_path: str, config: DSPConfigura
         True if processing succeeded, False otherwise
     """
     try:
-        print(f"\n{'='*60}")
-        print(f"FANCAM VOICE ENHANCEMENT PROCESSING")
-        print(f"{'='*60}")
-        print(f"Input video: {input_path}")
-        print(f"Output video: {output_path}")
-        print(f"{'='*60}")
-        
         # Initialize the voice enhancer
         enhancer = FancamVoiceEnhancer(config)
         
@@ -117,16 +110,7 @@ def process_fancam_video(input_path: str, output_path: str, config: DSPConfigura
             print(f"\n✓ PROCESSING COMPLETED SUCCESSFULLY!")
             print(f"  Enhanced video saved to: {output_path}")
             print(f"  Total processing time: {result['processing_time']:.2f} seconds")
-            
-            # Show processing details
-            if 'details' in result:
-                details = result['details']
-                print(f"\nProcessing Details:")
-                print(f"  - Original video duration: {details.get('duration', 'N/A'):.2f}s")
-                print(f"  - Audio extraction time: {details.get('extraction_time', 'N/A'):.2f}s")
-                print(f"  - Voice enhancement time: {details.get('enhancement_time', 'N/A'):.2f}s")
-                print(f"  - Video reconstruction time: {details.get('reconstruction_time', 'N/A'):.2f}s")
-            
+
             return True
         else:
             print(f"\n✗ PROCESSING FAILED")
@@ -160,12 +144,10 @@ def interactive_mode():
         while True:
             print(f"\nOptions:")
             print(f"1. Process fancam video")
-            print(f"2. Configure enhancement settings")
-            print(f"3. Show current configuration")
-            print(f"4. Exit")
+            print(f"2. Exit")
             print(f"{'-'*30}")
             
-            choice = input("Select option (1-4): ").strip()
+            choice = input("Select option").strip()
             
             if choice == "1":
                 # Process video
@@ -196,40 +178,6 @@ def interactive_mode():
                     print(f"\n❌ Processing failed. Check the log for details.")
             
             elif choice == "2":
-                # Configure settings
-                print(f"\n=== Enhancement Configuration ===")
-                print(f"Choose enhancement quality:")
-                print(f"1. Fast (lower quality, faster processing)")
-                print(f"2. Balanced (recommended)")
-                print(f"3. High Quality (slower processing)")
-                
-                quality_choice = input("Enter choice (1-3) [2]: ").strip() or "2"
-                
-                if quality_choice == "1":
-                    config = DSPConfiguration(
-                        sample_rate=44100,
-                        use_ai_separation=False,
-                        noise_reduction_strength=0.7
-                    )
-                elif quality_choice == "3":
-                    config = DSPConfiguration(
-                        sample_rate=48000,
-                        use_ai_separation=True,
-                        noise_reduction_strength=0.9
-                    )
-                else:
-                    config = DSPConfiguration()
-                
-                print(f"\nConfiguration updated!")
-                print(config.get_summary())
-            
-            elif choice == "3":
-                # Show configuration
-                config = DSPConfiguration()
-                print(f"\nCurrent Configuration:")
-                print(config.get_summary())
-            
-            elif choice == "4":
                 print(f"\nGoodbye! 👋")
                 break
             

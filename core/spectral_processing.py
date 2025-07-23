@@ -42,56 +42,6 @@ class SpectralProcessor:
         
         print(f"SpectralProcessor initialized with sr={self.sr}Hz, n_fft={self.n_fft}")
     
-    def enhanced_spectral_subtraction(self, magnitude, noise_profile):
-        config = self.config.spectral_subtraction_config
-    
-        # Ước tính nhiễu với median thay vì mean
-        noise_magnitude = np.median(noise_profile, axis=1, keepdims=True)
-    
-        # Tính SNR với smoothing
-        snr_linear = magnitude / (noise_magnitude + 1e-10)
-        snr_db = 20 * np.log10(snr_linear)
-    
-        # Alpha thích ứng với transition mượt hơn
-        alpha_adaptive = config['alpha'] * np.where(
-            snr_db > 15,
-            0.5,  # SNR cao: trừ ít
-            np.where(
-                snr_db < 0,
-                2.0,  # SNR thấp: trừ nhiều
-                1.0 - 0.5 * np.tanh((snr_db - 7.5) / 5)  # Transition mượt
-            )
-        )
-    
-        # Over-subtraction factor cho SNR thấp
-        over_subtraction = np.where(snr_db < 0, 1.5, 1.0)
-    
-        # Trừ phổ với over-subtraction
-        subtracted = magnitude - alpha_adaptive * over_subtraction * noise_magnitude
-    
-        # Spectral floor thích ứng
-        spectral_floor = config['beta'] * magnitude
-        enhanced = np.maximum(subtracted, spectral_floor)
-    
-        # Frequency smoothing
-        if config['frequency_smoothing'] > 1:
-            kernel = np.ones(config['frequency_smoothing']) / config['frequency_smoothing']
-            enhanced = np.apply_along_axis(
-                lambda x: np.convolve(x, kernel, mode='same'), 
-                axis=0, arr=enhanced
-            )
-    
-        # Temporal smoothing với điều kiện
-        if hasattr(self, 'prev_enhanced'):
-            smoothed = config['smoothing_factor'] * self.prev_enhanced + \
-                    (1 - config['smoothing_factor']) * enhanced
-            self.prev_enhanced = enhanced
-        else:
-            smoothed = enhanced
-            self.prev_enhanced = enhanced
-    
-        return smoothed
-    
     def estimate_fundamental_frequency(self, magnitude):
         """
         Ước tính tần số cơ bản sử dụng autocorrelation
@@ -240,11 +190,3 @@ if __name__ == "__main__":
     
     config = DSPConfiguration()
     processor = SpectralProcessor(config)
-    
-    # Tạo tín hiệu test
-    test_signal = np.random.randn(22050)  # 1 giây âm thanh
-    processed = processor.preprocess_audio(test_signal)
-    
-    print(f"Original signal shape: {test_signal.shape}")
-    print(f"Processed signal shape: {processed.shape}")
-    print("SpectralProcessor test completed successfully!")

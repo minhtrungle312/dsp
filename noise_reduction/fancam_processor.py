@@ -54,12 +54,7 @@ class FancamVoiceEnhancer:
         self.dsp_processor = AdvancedDSPProcessor(config)
         self.spleeter_processor = SpleeterProcessor(stems='spleeter:2stems-16kHz')
         self.post_processor = EnhancedPostProcessor(config)
-        self.audio_utils = AudioUtils()
-        print("✓ Fancam Voice Enhancer initialized successfully")
-        print(f"  - DSP Processor: Ready")
-        print(f"  - Spleeter Processor: Ready")
-        print(f"  - Post Processor: Ready")
-        print(f"  - Audio Utils: Ready")
+        self.audio_utils = AudioUtils()\
     
     def extract_audio_from_video(self, video_path: str, temp_audio_path: str) -> dict:
         """
@@ -166,7 +161,7 @@ class FancamVoiceEnhancer:
             # Phase 1: Enhanced Pre-processing (8-Step DSP Pipeline)
             print("\n  🔧 Phase 1: Enhanced Pre-processing (8-Step DSP Pipeline)")
             print("    Pipeline: Extract → Initial Process → Spectral Analysis → Spectral Sub → Wiener → Harmonic → Gate → Compress")
-            preprocessed_audio = self.dsp_processor.preprocess_for_ai(audio)
+            preprocessed_audio = self.dsp_processor.dsp_preprocess(audio)
             
             # Phase 2: AI-powered vocal separation
             print("\n  Phase 2: AI-powered vocal separation...")
@@ -304,18 +299,9 @@ class FancamVoiceEnhancer:
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 self.dsp_processor._export_step_audio(reconstructed_audio, "03_ai_reconstructed", timestamp)
                 
-                # Phase 4: Audio Enhancement
-                print("\n  Phase 4: Audio Enhancement...")
-                enhancement_result = self.enhance_audio_final(reconstructed_audio, sr)
+                # export video)
                 
-                if not enhancement_result['success']:
-                    return {
-                        'success': False,
-                        'error': enhancement_result['error'],
-                        'enhancement_time': time.time() - start_time
-                    }
-                
-                final_audio = enhancement_result['enhanced_audio']
+                final_audio = reconstructed_audio
                 
                 # Export final enhanced audio step
                 self.dsp_processor._export_step_audio(final_audio, "04_ai_final_enhanced", timestamp)
@@ -324,56 +310,6 @@ class FancamVoiceEnhancer:
             
             print(f"\n✓ Vocal enhancement completed")
             print(f"  Total processing time: {enhancement_time:.2f}s")
-            
-            # Print appropriate export summary based on processing path
-            if separated_audio is None:
-                # DSP-only pipeline was used
-                print(f"\n📁 DSP-only pipeline audio exports:")
-                print(f"  📋 8-Step Pre-processing:")
-                print(f"    - 01_ai_preprocessing_input")
-                print(f"    - 02_ai_initial_preprocess") 
-                print(f"    - 03_ai_spectral_subtracted")
-                print(f"    - 04_ai_wiener_filtered")
-                print(f"    - 05_ai_harmonic_enhanced")
-                print(f"    - 06_ai_noise_gated")
-                print(f"    - 07_ai_compressed")
-                print(f"    - 08_preprocessed_for_ai")
-                print(f"  🔧 Full DSP Processing:")
-                print(f"    - DSP-only preprocessed input")
-                print(f"    - All DSP processing steps (00-06 series)")
-                print(f"    - DSP spectral subtracted")
-                print(f"    - DSP Wiener filtered")
-                print(f"    - DSP harmonic enhanced")
-                print(f"    - DSP noise gated")
-                print(f"    - DSP-only final enhanced")
-                print(f"    - DSP-only post processed")
-                print(f"  📊 Total: ~16+ audio files exported to: ./output/dsp_steps/")
-            else:
-                # AI-based pipeline was used
-                print(f"\n📁 AI-based pipeline audio exports:")
-                print(f"  📋 8-Step Pre-processing:")
-                print(f"    - 01_ai_preprocessing_input")
-                print(f"    - 02_ai_initial_preprocess") 
-                print(f"    - 03_ai_spectral_subtracted")
-                print(f"    - 04_ai_wiener_filtered")
-                print(f"    - 05_ai_harmonic_enhanced")
-                print(f"    - 06_ai_noise_gated")
-                print(f"    - 07_ai_compressed")
-                print(f"    - 08_preprocessed_for_ai")
-                print(f"  🤖 AI Separation:")
-                print(f"    - AI separated vocals & accompaniment") 
-                print(f"  🎵 Audio Reconstruction:")
-                print(f"    - Clean vocals after ISTFT")
-                print(f"    - Gated vocals")
-                print(f"    - Compressed vocals")
-                print(f"    - Reconstructed mixed audio")
-                print(f"  ✨ Final Enhancement:")
-                print(f"    - Multiband compressed")
-                print(f"    - EQ enhanced") 
-                print(f"    - Peak normalized")
-                print(f"    - RMS normalized")
-                print(f"    - Final limited")
-                print(f"  📊 Total: ~20+ audio files exported to: ./output/dsp_steps/")
             
             return {
                 'success': True,
@@ -590,122 +526,6 @@ class FancamVoiceEnhancer:
             print(f"    Warning: Noise gate failed: {e}")
             return audio
 
-    def apply_compression(self, audio: np.ndarray, ratio: float, threshold: float) -> np.ndarray:
-        """Apply dynamic range compression"""
-        try:
-            # Simple compression implementation
-            audio_db = 20 * np.log10(np.abs(audio) + 1e-10)
-            
-            # Compression curve
-            compressed_db = np.where(
-                audio_db > threshold,
-                threshold + (audio_db - threshold) / ratio,
-                audio_db
-            )
-            
-            # Convert back to linear
-            compressed_audio = np.sign(audio) * np.power(10, compressed_db / 20)
-            
-            return compressed_audio
-        except Exception as e:
-            print(f"    Warning: Compression failed: {e}")
-            return audio
-
-    def apply_multiband_compression(self, audio: np.ndarray, sr: int) -> np.ndarray:
-        """Apply multi-band compression for better control"""
-        try:
-            # Split into frequency bands
-            # Low band (up to 200Hz)
-            sos_low = butter(4, 200, btype='low', fs=sr, output='sos')
-            low_band = sosfilt(sos_low, audio)
-            
-            # Mid band (200Hz - 2kHz)
-            sos_mid = butter(4, [200, 2000], btype='band', fs=sr, output='sos')
-            mid_band = sosfilt(sos_mid, audio)
-            
-            # High band (above 2kHz)
-            sos_high = butter(4, 2000, btype='high', fs=sr, output='sos')
-            high_band = sosfilt(sos_high, audio)
-            
-            # Apply different compression to each band
-            low_compressed = self.apply_compression(low_band, ratio=2.0, threshold=-20)
-            mid_compressed = self.apply_compression(mid_band, ratio=3.0, threshold=-15)
-            high_compressed = self.apply_compression(high_band, ratio=2.5, threshold=-12)
-            
-            # Combine bands
-            compressed_audio = low_compressed + mid_compressed + high_compressed
-            
-            return compressed_audio
-        except Exception as e:
-            print(f"    Warning: Multi-band compression failed: {e}")
-            return audio
-
-    def apply_vocal_eq(self, audio: np.ndarray, sr: int) -> np.ndarray:
-        """Apply EQ optimized for vocal enhancement"""
-        try:
-            # High-pass filter to remove low-frequency noise
-            sos_hp = butter(4, 80, btype='high', fs=sr, output='sos')
-            eq_audio = sosfilt(sos_hp, audio)
-            
-            # Boost presence frequencies (2-5kHz)
-            sos_presence = butter(2, [2000, 5000], btype='band', fs=sr, output='sos')
-            presence_boost = sosfilt(sos_presence, audio) * 0.3
-            eq_audio = eq_audio + presence_boost
-            
-            # Gentle de-essing (reduce harsh 6-8kHz)
-            sos_deess = butter(2, [6000, 8000], btype='band', fs=sr, output='sos')
-            deess_signal = sosfilt(sos_deess, eq_audio) * 0.2
-            eq_audio = eq_audio - deess_signal
-            
-            return eq_audio
-        except Exception as e:
-            print(f"    Warning: Vocal EQ failed: {e}")
-            return audio
-
-    def normalize_peak(self, audio: np.ndarray, target_peak: float) -> np.ndarray:
-        """Normalize audio to target peak level"""
-        try:
-            current_peak = np.max(np.abs(audio))
-            if current_peak > 0:
-                target_linear = np.power(10, target_peak / 20)
-                gain = target_linear / current_peak
-                return audio * gain
-            return audio
-        except Exception as e:
-            print(f"    Warning: Peak normalization failed: {e}")
-            return audio
-
-    def normalize_rms(self, audio: np.ndarray, target_rms: float) -> np.ndarray:
-        """Normalize audio to target RMS level"""
-        try:
-            current_rms = np.sqrt(np.mean(audio**2))
-            if current_rms > 0:
-                target_linear = np.power(10, target_rms / 20)
-                gain = target_linear / current_rms
-                return audio * gain
-            return audio
-        except Exception as e:
-            print(f"    Warning: RMS normalization failed: {e}")
-            return audio
-
-    def apply_limiter(self, audio: np.ndarray, threshold: float, release: float) -> np.ndarray:
-        """Apply limiter to prevent clipping"""
-        try:
-            # Simple limiter implementation
-            threshold_linear = np.power(10, threshold / 20)
-            limited_audio = np.clip(audio, -threshold_linear, threshold_linear)
-            
-            # Smooth the limiting with release
-            # Simple approximation of release time
-            for i in range(1, len(limited_audio)):
-                if np.abs(limited_audio[i]) < np.abs(limited_audio[i-1]):
-                    limited_audio[i] = limited_audio[i-1] * (1 - release) + limited_audio[i] * release
-            
-            return limited_audio
-        except Exception as e:
-            print(f"    Warning: Limiter failed: {e}")
-            return audio
-
     def reconstruct_audio_from_ai(self, original_audio: np.ndarray, separated_audio: dict, 
                                  sr: int) -> dict:
         """
@@ -850,72 +670,4 @@ class FancamVoiceEnhancer:
                 'success': False,
                 'error': f'Audio reconstruction failed: {str(e)}',
                 'reconstruction_time': time.time() - start_time
-            }
-
-    def enhance_audio_final(self, clean_audio: np.ndarray, sr: int) -> dict:
-        """
-        Phase 4: Audio Enhancement (Clean Audio → EQ → Normalization → Enhanced Audio)
-        
-        Args:
-            clean_audio: Clean audio from reconstruction phase
-            sr: Sample rate
-            
-        Returns:
-            dict: Final enhanced audio result
-        """
-        start_time = time.time()
-        
-        try:
-            print("  Phase 4: Audio Enhancement (Clean Audio → EQ → Normalization)...")
-            
-            # Generate timestamp for this session
-            import datetime
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # Step 1: Dynamic range compression
-            print("    4.1: Dynamic range compression...")
-            
-            # Multi-band compression for better control
-            compressed_audio = self.apply_multiband_compression(clean_audio, sr)
-            self.dsp_processor._export_step_audio(compressed_audio, "multiband_compressed", timestamp)
-            
-            # Step 2: Equalizer adjustment
-            print("    4.2: Equalizer adjustment...")
-            
-            # EQ for vocal enhancement
-            eq_audio = self.apply_vocal_eq(compressed_audio, sr)
-            self.dsp_processor._export_step_audio(eq_audio, "eq_enhanced", timestamp)
-            
-            # Step 3: Audio normalization
-            print("    4.3: Audio normalization...")
-            
-            # Peak normalization to -1dB
-            peak_normalized = self.normalize_peak(eq_audio, target_peak=-1.0)
-            self.dsp_processor._export_step_audio(peak_normalized, "peak_normalized", timestamp)
-            
-            # RMS normalization for consistent loudness
-            rms_normalized = self.normalize_rms(peak_normalized, target_rms=-18.0)
-            self.dsp_processor._export_step_audio(rms_normalized, "rms_normalized", timestamp)
-            
-            # Step 4: Final limiter to prevent clipping
-            print("    4.4: Final limiting...")
-            
-            limited_audio = self.apply_limiter(rms_normalized, threshold=-0.5, release=0.05)
-            self.dsp_processor._export_step_audio(limited_audio, "final_limited", timestamp)
-            
-            enhancement_time = time.time() - start_time
-            
-            print(f"    ✓ Audio enhancement completed ({enhancement_time:.2f}s)")
-            
-            return {
-                'success': True,
-                'enhanced_audio': limited_audio,
-                'enhancement_time': enhancement_time
-            }
-            
-        except Exception as e:
-            return {
-                'success': False,
-                'error': f'Audio enhancement failed: {str(e)}',
-                'enhancement_time': time.time() - start_time
             }

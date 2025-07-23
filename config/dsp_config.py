@@ -60,8 +60,8 @@ class DSPConfiguration:
         
         # Tham số Spectral Subtraction - Trừ phổ để giảm nhiễu
         self.spectral_subtraction_config = {
-            'alpha': 1.2,                 # Giảm xuống từ 2.0
-            'beta': 0.02,                 # Tăng lên từ 0.001
+            'alpha': 2.0,                 # Giảm xuống từ 2.0
+            'beta': 0.1,                 # Tăng lên từ 0.001
             'noise_estimation_frames': 50, # Giảm xuống để responsive hơn
             'smoothing_factor': 0.7,      # Giảm xuống để giữ chi tiết
             'frequency_smoothing': 3,     # OK
@@ -73,9 +73,9 @@ class DSPConfiguration:
         self.harmonic_enhancement_config = {
             'algorithm': 'spectral_harmonic_ratio',  # Thuật toán sử dụng
             'fundamental_freq_range': [80, 1000],    # Dải tần số cơ bản (Hz)
-            'harmonics_count': 5,                    # Số âm hài cần cải thiện
+            'harmonics_count': 8,                    # Số âm hài cần cải thiện
             'harmonic_threshold': 0.3,               # Ngưỡng phát hiện âm hài
-            'enhancement_factor': 1.5,               # Hệ số cải thiện âm hài
+            'enhancement_factor': 2,               # Hệ số cải thiện âm hài
             'spectral_envelope_smoothing': 0.95      # Làm mịn envelope phổ
         }
         
