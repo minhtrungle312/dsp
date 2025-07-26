@@ -111,7 +111,7 @@ class AudioUtils:
     def extract_audio_from_video(self, video_path, output_audio_path=None, 
                                sample_rate=44100, mono=True):
         """
-        Extract audio from video file using ffmpeg with fallback strategies.
+        Extract audio from video file using ffmpeg with moviepy fallback.
         
         Args:
             video_path: Path to video file
@@ -129,132 +129,132 @@ class AudioUtils:
             if not os.path.exists(video_path):
                 raise FileNotFoundError(f"Video file not found: {video_path}")
             
-            # Strategy 1: Try moviepy for video processing
+            # Strategy 1: Try FFmpeg first (faster and more reliable)
             try:
-                print("  Trying moviepy for audio extraction...")
-                if MOVIEPY_AVAILABLE:
-                    video = VideoFileClip(video_path)
-                    audio_clip = video.audio
+                print("  Trying ffmpeg extraction...")
+                import subprocess
+                import tempfile
+                
+                # Generate temporary audio file
+                temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                temp_audio_path = temp_file.name
+                temp_file.close()
+                
+                # Use ffmpeg to extract audio with specific format
+                cmd = [
+                    'ffmpeg', '-i', video_path,
+                    '-ar', str(sample_rate),
+                    '-ac', '1' if mono else '2',
+                    '-acodec', 'pcm_s16le',  # Use PCM format for better compatibility
+                    '-y',  # Overwrite output file
+                    temp_audio_path
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    print(f"✓ Successfully extracted audio using ffmpeg")
                     
-                    # Create temporary file for audio extraction
-                    import tempfile
-                    temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-                    temp_audio_file = temp_file.name
-                    temp_file.close()
+                    # Try multiple ways to load the extracted file
+                    audio = None
+                    sr = sample_rate
                     
+                    # Try soundfile first (more reliable than librosa for WAV)
                     try:
-                        # Extract audio to temporary file
-                        audio_clip.write_audiofile(temp_audio_file, logger=None, verbose=False)
+                        print("  Trying soundfile to load extracted audio...")
+                        import soundfile as sf
+                        audio, sr = sf.read(temp_audio_path)
+                        if len(audio.shape) > 1 and mono:
+                            audio = np.mean(audio, axis=1)
+                        print(f"✓ Successfully loaded with soundfile")
+                    except Exception as sf_error:
+                        print(f"  Soundfile failed: {sf_error}")
                         
-                        # Load with librosa or soundfile
+                        # Fallback to librosa
                         try:
-                            audio, sr = librosa.load(
-                                temp_audio_file, 
-                                sr=sample_rate, 
-                                mono=mono
-                            )
-                        except:
-                            import soundfile as sf
-                            audio, sr = sf.read(temp_audio_file)
-                            if len(audio.shape) > 1 and mono:
-                                audio = np.mean(audio, axis=1)
-                        
-                        print(f"✓ Successfully extracted audio using moviepy")
+                            print("  Trying librosa to load extracted audio...")
+                            audio, sr = librosa.load(temp_audio_path, sr=sample_rate, mono=mono)
+                            print(f"✓ Successfully loaded with librosa")
+                        except Exception as librosa_error:
+                            print(f"  Librosa failed on extracted file: {librosa_error}")
+                    
+                    # Clean up temp file
+                    try:
+                        os.unlink(temp_audio_path)
+                    except:
+                        pass
+                    
+                    if audio is not None:
+                        print(f"  Final audio shape: {audio.shape}")
                         print(f"  Duration: {len(audio)/sr:.2f}s")
-                        print(f"  Sample rate: {sr}Hz")
                         
-                        # Save to output file if specified
+                        # Save to final output if specified
                         if output_audio_path:
                             self.save_audio(audio, output_audio_path, sr)
                             return output_audio_path, sr
                         else:
                             return audio, sr
-                            
-                    finally:
-                        # Cleanup
-                        audio_clip.close()
-                        video.close()
-                        if os.path.exists(temp_audio_file):
-                            os.remove(temp_audio_file)
+                    else:
+                        raise Exception("Failed to load extracted audio with any method")
                 else:
-                    raise ImportError("MoviePy not available")
+                    raise Exception(f"FFmpeg failed: {result.stderr}")
                     
-            except Exception as moviepy_error:
-                print(f"  MoviePy extraction failed: {moviepy_error}")
+            except Exception as ffmpeg_error:
+                print(f"  FFmpeg extraction failed: {ffmpeg_error}")
                 
-                # Strategy 2: Use ffmpeg to extract to temporary WAV file
+                # Strategy 2: Fallback to moviepy for video processing
                 try:
-                    print("  Trying ffmpeg extraction...")
-                    import subprocess
-                    import tempfile
-                    
-                    # Generate temporary audio file
-                    temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-                    temp_audio_path = temp_file.name
-                    temp_file.close()
-                    
-                    # Use ffmpeg to extract audio with specific format
-                    cmd = [
-                        'ffmpeg', '-i', video_path,
-                        '-ar', str(sample_rate),
-                        '-ac', '1' if mono else '2',
-                        '-acodec', 'pcm_s16le',  # Use PCM format for better compatibility
-                        '-y',  # Overwrite output file
-                        temp_audio_path
-                    ]
-                    
-                    result = subprocess.run(cmd, capture_output=True, text=True)
-                    
-                    if result.returncode == 0:
-                        print(f"✓ Successfully extracted audio using ffmpeg")
+                    print("  Trying moviepy as fallback...")
+                    if MOVIEPY_AVAILABLE:
+                        video = VideoFileClip(video_path)
+                        audio_clip = video.audio
                         
-                        # Strategy 3: Try multiple ways to load the extracted file
-                        audio = None
-                        sr = sample_rate
+                        # Create temporary file for audio extraction
+                        import tempfile
+                        temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                        temp_audio_file = temp_file.name
+                        temp_file.close()
                         
-                        # Try soundfile first (more reliable than librosa for WAV)
                         try:
-                            print("  Trying soundfile to load extracted audio...")
-                            import soundfile as sf
-                            audio, sr = sf.read(temp_audio_path)
-                            if len(audio.shape) > 1 and mono:
-                                audio = np.mean(audio, axis=1)
-                            print(f"✓ Successfully loaded with soundfile")
-                        except Exception as sf_error:
-                            print(f"  Soundfile failed: {sf_error}")
+                            # Extract audio to temporary file
+                            audio_clip.write_audiofile(temp_audio_file, logger=None, verbose=False)
                             
-                            # Fallback to librosa
+                            # Load with librosa or soundfile
                             try:
-                                print("  Trying librosa to load extracted audio...")
-                                audio, sr = librosa.load(temp_audio_path, sr=sample_rate, mono=mono)
-                                print(f"✓ Successfully loaded with librosa")
-                            except Exception as librosa_error2:
-                                print(f"  Librosa failed on extracted file: {librosa_error2}")
-                        
-                        # Clean up temp file
-                        try:
-                            os.unlink(temp_audio_path)
-                        except:
-                            pass
-                        
-                        if audio is not None:
-                            print(f"  Final audio shape: {audio.shape}")
-                            print(f"  Duration: {len(audio)/sr:.2f}s")
+                                audio, sr = librosa.load(
+                                    temp_audio_file, 
+                                    sr=sample_rate, 
+                                    mono=mono
+                                )
+                            except:
+                                import soundfile as sf
+                                audio, sr = sf.read(temp_audio_file)
+                                if len(audio.shape) > 1 and mono:
+                                    audio = np.mean(audio, axis=1)
                             
-                            # Save to final output if specified
+                            print(f"✓ Successfully extracted audio using moviepy")
+                            print(f"  Duration: {len(audio)/sr:.2f}s")
+                            print(f"  Sample rate: {sr}Hz")
+                            
+                            # Save to output file if specified
                             if output_audio_path:
                                 self.save_audio(audio, output_audio_path, sr)
                                 return output_audio_path, sr
                             else:
                                 return audio, sr
-                        else:
-                            raise Exception("Failed to load extracted audio with any method")
+                                
+                        finally:
+                            # Cleanup
+                            audio_clip.close()
+                            video.close()
+                            if os.path.exists(temp_audio_file):
+                                os.remove(temp_audio_file)
                     else:
-                        raise Exception(f"FFmpeg failed: {result.stderr}")
+                        raise ImportError("MoviePy not available")
                         
-                except Exception as ffmpeg_error:
-                    print(f"  FFmpeg extraction failed: {ffmpeg_error}")
-                    raise Exception(f"Failed to extract audio from video. Both librosa and ffmpeg failed.")
+                except Exception as moviepy_error:
+                    print(f"  MoviePy extraction failed: {moviepy_error}")
+                    raise Exception(f"Failed to extract audio from video. Both FFmpeg and MoviePy failed.")
         
         except Exception as e:
             print(f"Error extracting audio from video {video_path}: {e}")

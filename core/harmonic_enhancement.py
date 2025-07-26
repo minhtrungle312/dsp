@@ -11,8 +11,10 @@ Author: DSP Team
 Date: 2025
 """
 
+from matplotlib import pyplot as plt
 import numpy as np
 import librosa
+import os
 
 class HarmonicEnhancer:
     """
@@ -37,6 +39,10 @@ class HarmonicEnhancer:
         self.sr = config.master_config['sample_rate']  # Tần số lấy mẫu
         self.n_fft = config.stft_config['n_fft']       # Kích thước FFT
         
+        # Setup output directory for charts
+        self.chart_dir = "./output/chart"
+        os.makedirs(self.chart_dir, exist_ok=True)
+        
         print(f"HarmonicEnhancer initialized with sr={self.sr}Hz, n_fft={self.n_fft}")
     
     def spectral_harmonic_enhancement(self, stft_matrix, f0_track):
@@ -57,9 +63,6 @@ class HarmonicEnhancer:
         
         # Tạo bản sao để sửa đổi
         enhanced_magnitude = magnitude.copy()
-        
-        # Tạo mảng tần số để mapping
-        freqs = librosa.fft_frequencies(sr=self.sr, n_fft=self.n_fft)
         
         # Xử lý từng frame
         for frame_idx in range(magnitude.shape[1]):
@@ -156,6 +159,16 @@ class HarmonicEnhancer:
         
         # Áp dụng bộ lọc
         filtered_magnitude = magnitude * smoothed_gain
+        
+        # Tạo SNR chart
+        plt.figure(figsize=(10, 4))
+        times = np.linspace(0, len(snr_db[0]) * 512 / self.sr, len(snr_db[0]))
+        plt.plot(times, np.mean(snr_db, axis=0))
+        plt.title('SNR (dB) - Sau Wiener Filter')
+        plt.xlabel('Thời gian (s)')
+        plt.ylabel('SNR (dB)')
+        plt.savefig(os.path.join(self.chart_dir, '2_4_wiener_snr.png'))
+        plt.close()
         
         return filtered_magnitude * np.exp(1j * phase)
     

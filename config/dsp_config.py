@@ -68,9 +68,9 @@ class DSPConfiguration:
         self.harmonic_enhancement_config = {
             'algorithm': 'spectral_harmonic_ratio',  # Thuật toán sử dụng
             'fundamental_freq_range': [80, 1000],    # Dải tần số cơ bản (Hz)
-            'harmonics_count': 8,                    # Số âm hài cần cải thiện
-            'harmonic_threshold': 0.3,               # Ngưỡng phát hiện âm hài
-            'enhancement_factor': 2,               # Hệ số cải thiện âm hài
+            'harmonics_count': 10,                    # Số âm hài cần cải thiện
+            'harmonic_threshold': 0.4,               # Ngưỡng phát hiện âm hài
+            'enhancement_factor': 4,               # Hệ số cải thiện âm hài
             'spectral_envelope_smoothing': 0.95      # Làm mịn envelope phổ
         }
         

@@ -19,7 +19,8 @@ import tempfile
 import soundfile as sf
 import numpy as np
 import librosa
-from scipy.signal import butter, sosfilt
+import matplotlib.pyplot as plt
+import datetime
 
 # Import processing components
 from core.dsp_processor import AdvancedDSPProcessor
@@ -52,7 +53,7 @@ class FancamVoiceEnhancer:
         # Initialize processing components
         self.dsp_processor = AdvancedDSPProcessor(config)
         self.spleeter_processor = SpleeterProcessor(stems='spleeter:2stems-16kHz')
-        self.audio_utils = AudioUtils()\
+        self.audio_utils = AudioUtils()
     
     def extract_audio_from_video(self, video_path: str, temp_audio_path: str) -> dict:
         """
@@ -227,7 +228,92 @@ class FancamVoiceEnhancer:
             self.dsp_processor._export_step_audio(reconstructed_audio, "03_ai_reconstructed", timestamp)
 
             # export video
-            final_audio = reconstructed_audio
+            final_audio = preprocessed_audio
+
+            # Tạo thư mục chart nếu chưa có
+            chart_dir = "./output/chart"
+            os.makedirs(chart_dir, exist_ok=True)
+            
+            # So sánh Original Audio vs Final Enhanced Audio
+            plt.figure(figsize=(15, 10))
+            
+            # 1. Waveform comparison
+            plt.subplot(3, 2, 1)
+            librosa.display.waveshow(audio, sr=sr)
+            plt.title('Dạng sóng - Original Audio')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.subplot(3, 2, 2)
+            librosa.display.waveshow(final_audio, sr=sr)
+            plt.title('Dạng sóng - Final Enhanced Audio')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            # 2. Spectrogram comparison
+            plt.subplot(3, 2, 3)
+            original_stft = librosa.stft(audio, n_fft=2048, hop_length=512, window='hann')
+            S_original_db = librosa.amplitude_to_db(np.abs(original_stft))
+            librosa.display.specshow(S_original_db, sr=sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Original Audio')
+            
+            plt.subplot(3, 2, 4)
+            final_stft = librosa.stft(final_audio, n_fft=2048, hop_length=512, window='hann')
+            S_final_db = librosa.amplitude_to_db(np.abs(final_stft))
+            librosa.display.specshow(S_final_db, sr=sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Final Enhanced Audio')
+            
+            # 3. RMS energy comparison
+            plt.subplot(3, 2, 5)
+            frame_length = 2048
+            hop_length = 512
+            original_rms = librosa.feature.rms(y=audio, frame_length=frame_length, hop_length=hop_length)[0]
+            final_rms = librosa.feature.rms(y=final_audio, frame_length=frame_length, hop_length=hop_length)[0]
+            times = librosa.frames_to_time(range(len(original_rms)), sr=sr, hop_length=hop_length)
+            
+            plt.plot(times, original_rms, label='Original Audio', alpha=0.8)
+            plt.plot(times, final_rms, label='Final Enhanced Audio', alpha=0.8)
+            plt.title('RMS Energy Comparison')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('RMS Energy')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            # 4. Audio statistics comparison
+            plt.subplot(3, 2, 6)
+            stats_original = {
+                'RMS': np.sqrt(np.mean(audio**2)),
+                'Peak': np.max(np.abs(audio)),
+                'Crest Factor': np.max(np.abs(audio)) / np.sqrt(np.mean(audio**2)) if np.sqrt(np.mean(audio**2)) > 0 else 0
+            }
+            stats_final = {
+                'RMS': np.sqrt(np.mean(final_audio**2)),
+                'Peak': np.max(np.abs(final_audio)),
+                'Crest Factor': np.max(np.abs(final_audio)) / np.sqrt(np.mean(final_audio**2)) if np.sqrt(np.mean(final_audio**2)) > 0 else 0
+            }
+            
+            x_pos = np.arange(len(stats_original))
+            width = 0.35
+            
+            plt.bar(x_pos - width/2, list(stats_original.values()), width, label='Original Audio', alpha=0.8)
+            plt.bar(x_pos + width/2, list(stats_final.values()), width, label='Final Enhanced Audio', alpha=0.8)
+            
+            plt.title('Audio Statistics Comparison')
+            plt.xlabel('Metrics')
+            plt.ylabel('Value')
+            plt.xticks(x_pos, list(stats_original.keys()), rotation=45)
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'4_final_comparison_original_vs_enhanced_{timestamp}.png'), dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            print(f"✓ Generated comparison chart: 4_final_comparison_original_vs_enhanced_{timestamp}.png")
+            print(f"  Original Audio - RMS: {stats_original['RMS']:.6f}, Peak: {stats_original['Peak']:.6f}")
+            print(f"  Enhanced Audio - RMS: {stats_final['RMS']:.6f}, Peak: {stats_final['Peak']:.6f}")
 
             # Export final enhanced audio step
             self.dsp_processor._export_step_audio(final_audio, "04_ai_final_enhanced", timestamp)
@@ -442,13 +528,13 @@ class FancamVoiceEnhancer:
             import datetime
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             
+            # Tạo thư mục output/chart nếu chưa có
+            chart_dir = "./output/chart"
+            os.makedirs(chart_dir, exist_ok=True)
+            
             # Bước 1: Extract vocals và accompaniment
             vocals = separated_audio.get('vocals', original_audio)
             accompaniment = separated_audio.get('accompaniment', np.zeros_like(original_audio))
-            
-            # Export step 1
-            self.dsp_processor._export_step_audio(vocals, f"reconstruct_01_extracted_vocals", timestamp)
-            self.dsp_processor._export_step_audio(accompaniment, f"reconstruct_01_extracted_accompaniment", timestamp)
             
             # Bước 2: Validation & length sync
             if not isinstance(vocals, np.ndarray):
@@ -468,21 +554,65 @@ class FancamVoiceEnhancer:
                 else:
                     accompaniment = np.pad(accompaniment, (0, len(original_audio) - len(accompaniment)))
             
-            # Export step 2 (sau khi sync length)
-            self.dsp_processor._export_step_audio(vocals, f"reconstruct_02_synced_vocals", timestamp)
-            self.dsp_processor._export_step_audio(accompaniment, f"reconstruct_02_synced_accompaniment", timestamp)
-            
             # Bước 3: Tính RMS và threshold
             vocals_rms = np.sqrt(np.mean(vocals**2))
             gate_threshold = max(vocals_rms * 0.01, vocals_rms * 0.02, 0.0001)
             
             print(f"    Reconstruct Debug - Vocals RMS: {vocals_rms:.6f}, Gate threshold: {gate_threshold:.6f}")
             
+            # Chuẩn bị STFT cho visualization
+            n_fft = 2048
+            hop_length = 512
+            vocals_stft = librosa.stft(vocals, n_fft=n_fft, hop_length=hop_length, window='hann')
+            original_stft = librosa.stft(original_audio, n_fft=n_fft, hop_length=hop_length, window='hann')
+            S_vocals_db = librosa.amplitude_to_db(np.abs(vocals_stft))
+            S_original_db = librosa.amplitude_to_db(np.abs(original_stft))
+            
             # Bước 4: Apply Noise Gate
             gated_vocals = np.where(np.abs(vocals) > gate_threshold, vocals, 0.0)
             
             # Export step 4 (sau noise gate)
             self.dsp_processor._export_step_audio(gated_vocals, f"reconstruct_04_gated_vocals", timestamp)
+            
+            # Tính STFT cho gated vocals
+            gated_vocals_stft = librosa.stft(gated_vocals, n_fft=n_fft, hop_length=hop_length, window='hann')
+            
+            # 3. Bước 4: Spectrogram so sánh (Vocals vs. Gated Vocals)
+            plt.figure(figsize=(12, 8))
+            
+            plt.subplot(2, 1, 1)
+            librosa.display.specshow(S_vocals_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Vocals before Noise Gate (Step 1)')
+            
+            plt.subplot(2, 1, 2)
+            S_gated_vocals_db = librosa.amplitude_to_db(np.abs(gated_vocals_stft))
+            librosa.display.specshow(S_gated_vocals_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Gated Vocals (Step 4)')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'3_4_reconstruct_04_noise_gate_spectrograms_{timestamp}.png'))
+            plt.close()
+            
+            # 4. Bước 4: Dạng sóng so sánh (Vocals vs. Gated Vocals)
+            plt.figure(figsize=(12, 8))
+            
+            plt.subplot(2, 1, 1)
+            librosa.display.waveshow(vocals, sr=sr)
+            plt.title('Dạng sóng - Vocals trước Noise Gate (Bước 1)')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.subplot(2, 1, 2)
+            librosa.display.waveshow(gated_vocals, sr=sr)
+            plt.title('Dạng sóng - Gated Vocals (Bước 4)')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'3_4_reconstruct_04_noise_gate_waveforms_{timestamp}.png'))
+            plt.close()
             
             # Debug info về noise gate
             below_threshold = np.sum(np.abs(vocals) <= gate_threshold)
@@ -494,28 +624,51 @@ class FancamVoiceEnhancer:
             # Export step 5 (sau mixing)
             self.dsp_processor._export_step_audio(reconstructed_audio, f"reconstruct_05_mixed_audio", timestamp)
             
-            # Bước 6: RMS Normalization
-            original_rms = np.sqrt(np.mean(original_audio**2))
-            current_rms = np.sqrt(np.mean(reconstructed_audio**2))
+            # Tính STFT cho reconstructed audio
+            reconstructed_stft = librosa.stft(reconstructed_audio, n_fft=n_fft, hop_length=hop_length, window='hann')
             
-            print(f"    Reconstruct Debug - Original RMS: {original_rms:.6f}, Current RMS: {current_rms:.6f}")
+            # 5. Bước 5: Spectrogram so sánh (Original vs. Mixed Audio)
+            plt.figure(figsize=(12, 8))
             
-            if current_rms > 0 and original_rms > 0:
-                ratio = current_rms / original_rms
-                print(f"    Reconstruct Debug - RMS ratio: {ratio:.3f}")
-                
-                if ratio < 0.5 or ratio > 2.0:
-                    target_rms = original_rms * 0.95
-                    normalization_gain = target_rms / current_rms
-                    reconstructed_audio = reconstructed_audio * normalization_gain
-                    print(f"    Reconstruct Debug - Applied normalization gain: {normalization_gain:.3f}")
-                    
-                    # Export step 6a (sau normalization)
-                    self.dsp_processor._export_step_audio(reconstructed_audio, f"reconstruct_06a_normalized_audio", timestamp)
+            plt.subplot(2, 1, 1)
+            librosa.display.specshow(S_original_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Original Audio (00_original_extracted_from_video.wav)')
+            
+            plt.subplot(2, 1, 2)
+            S_reconstructed_db = librosa.amplitude_to_db(np.abs(reconstructed_stft))
+            librosa.display.specshow(S_reconstructed_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Mixed Audio (Bước 5)')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'3_5_reconstruct_05_mixed_spectrograms_{timestamp}.png'))
+            plt.close()
+            
+            # 6. Bước 5: Dạng sóng so sánh (Original vs. Mixed Audio)
+            plt.figure(figsize=(12, 8))
+            
+            plt.subplot(2, 1, 1)
+            librosa.display.waveshow(original_audio, sr=sr)
+            plt.title('Dạng sóng - Original Audio (00_original_extracted_from_video.wav)')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.subplot(2, 1, 2)
+            librosa.display.waveshow(reconstructed_audio, sr=sr)
+            plt.title('Dạng sóng - Mixed Audio (Bước 5)')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'3_5_reconstruct_05_mixed_waveforms_{timestamp}.png'))
+            plt.close()
             
             # Bước 7: Clipping Prevention
             max_val = np.max(np.abs(reconstructed_audio))
             print(f"    Reconstruct Debug - Max value before clipping: {max_val:.6f}")
+            
+            reconstructed_audio_before_clipping = None
             
             if max_val > 0.9:
                 reconstructed_audio_before_clipping = reconstructed_audio.copy()
@@ -527,6 +680,56 @@ class FancamVoiceEnhancer:
             
             # Export final result
             self.dsp_processor._export_step_audio(reconstructed_audio, f"reconstruct_07_final_result", timestamp)
+            
+            # 7. Bước 7: Spectrogram so sánh (Mixed vs. Final Result)
+            plt.figure(figsize=(12, 8))
+            
+            plt.subplot(2, 1, 1)
+            if reconstructed_audio_before_clipping is not None:
+                before_clipping_stft = librosa.stft(reconstructed_audio_before_clipping, n_fft=n_fft, hop_length=hop_length, window='hann')
+                S_before_clipping_db = librosa.amplitude_to_db(np.abs(before_clipping_stft))
+                title = 'Spectrogram - Mixed Audio trước Clipping (Bước 7a)'
+            else:
+                S_before_clipping_db = S_reconstructed_db
+                title = 'Spectrogram - Mixed Audio (Bước 5)'
+            librosa.display.specshow(S_before_clipping_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title(title)
+            
+            plt.subplot(2, 1, 2)
+            final_stft = librosa.stft(reconstructed_audio, n_fft=n_fft, hop_length=hop_length, window='hann')
+            S_final_db = librosa.amplitude_to_db(np.abs(final_stft))
+            librosa.display.specshow(S_final_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Final Result (Bước 7)')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'3_7_reconstruct_07_final_spectrograms_{timestamp}.png'))
+            plt.close()
+            
+            # 8. Bước 7: Dạng sóng so sánh (Mixed vs. Final Result)
+            plt.figure(figsize=(12, 8))
+            
+            plt.subplot(2, 1, 1)
+            if reconstructed_audio_before_clipping is not None:
+                librosa.display.waveshow(reconstructed_audio_before_clipping, sr=sr)
+                title = 'Dạng sóng - Mixed Audio trước Clipping (Bước 7a)'
+            else:
+                librosa.display.waveshow(reconstructed_audio, sr=sr)
+                title = 'Dạng sóng - Mixed Audio (Bước 5)'
+            plt.title(title)
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.subplot(2, 1, 2)
+            librosa.display.waveshow(reconstructed_audio, sr=sr)
+            plt.title('Dạng sóng - Final Result (Bước 7)')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(chart_dir, f'3_7_reconstruct_07_final_waveforms_{timestamp}.png'))
+            plt.close()
             
             # Final debug info
             final_rms = np.sqrt(np.mean(reconstructed_audio**2))

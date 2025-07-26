@@ -13,6 +13,8 @@ Date: 2025
 """
 
 import numpy as np
+import os
+from matplotlib import pyplot as plt
 
 class NoiseGateProcessor:
     """
@@ -36,6 +38,10 @@ class NoiseGateProcessor:
         """
         self.config = config
         self.sr = config.master_config['sample_rate']  # Tần số lấy mẫu
+        
+        # Setup output directory for charts
+        self.chart_dir = "./output/chart"
+        os.makedirs(self.chart_dir, exist_ok=True)
         
         print(f"NoiseGateProcessor initialized with sr={self.sr}Hz")
     
@@ -168,6 +174,20 @@ class NoiseGateProcessor:
         
         # Áp dụng cổng lên tín hiệu
         gated_audio = audio * smoothed_gate
+        
+        # Tạo chart cho RMS Envelope và Gate Control
+        plt.figure(figsize=(10, 4))
+        times = np.linspace(0, len(rms_db) * 512 / self.sr, len(rms_db))
+        plt.plot(times, rms_db, label='RMS Envelope (dB)')
+        plt.plot(times, gate_control * np.max(rms_db), label='Gate Control', linestyle='--')
+        plt.plot(times, smoothed_gate * np.max(rms_db), label='Smoothed Gate', linestyle='-.')
+        plt.axhline(y=config['threshold_db'], color='r', linestyle=':', label='Ngưỡng')
+        plt.title('RMS Envelope và Gate Control')
+        plt.xlabel('Thời gian (s)')
+        plt.ylabel('Amplitude')
+        plt.legend()
+        plt.savefig(os.path.join(self.chart_dir, '2_6_noise_gating_control.png'))
+        plt.close()
         
         return gated_audio
     

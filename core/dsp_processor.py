@@ -15,11 +15,11 @@ Date: 2025
 import numpy as np
 import librosa
 import soundfile as sf
-import subprocess
 import os
 from .spectral_processing import SpectralProcessor
 from .harmonic_enhancement import HarmonicEnhancer
 from .noise_gate import NoiseGateProcessor
+import matplotlib.pyplot as plt
 
 class AdvancedDSPProcessor:
     """
@@ -54,6 +54,10 @@ class AdvancedDSPProcessor:
         self.output_dir = "./output/dsp_steps"
         os.makedirs(self.output_dir, exist_ok=True)
         self.enable_step_export = True  # Enable/disable step-by-step export
+        
+        # Setup output directory for charts
+        self.chart_dir = "./output/chart"
+        os.makedirs(self.chart_dir, exist_ok=True)
         
         # Tính các tham số dẫn xuất
         self.frame_duration = self.n_fft / self.sr
@@ -138,8 +142,34 @@ class AdvancedDSPProcessor:
                 center=self.config.stft_config['center'],
                 pad_mode=self.config.stft_config['pad_mode']
             )
+
+            plt.figure(figsize=(10, 4))
+            librosa.display.specshow(librosa.amplitude_to_db(np.abs(stft), ref=np.max), sr=self.sr, hop_length=self.hop_length, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Audio gốc (STFT)')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Tần số (Hz)')
+            plt.savefig(os.path.join(self.chart_dir, '2_1_stft_spectrogram.png'))
+            plt.close()
+
             # Noise profiling
-            _, D_crowd = librosa.decompose.hpss(stft, margin=1.0)
+            D_vocal, D_crowd = librosa.decompose.hpss(stft, margin=1.0)
+
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            S_harmonic_db = librosa.amplitude_to_db(np.abs(D_vocal))
+            librosa.display.specshow(S_harmonic_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Harmonic (Vocal)')
+
+            plt.subplot(1, 2, 2)
+            S_percussive_db = librosa.amplitude_to_db(np.abs(D_crowd))
+            librosa.display.specshow(S_percussive_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Percussive (Tiếng khán giả)')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_2_hpss_spectrogram.png'))
+            plt.close()
 
             # step2: ENHANCED SPECTRAL SUBTRACTION
             orig_mag = np.abs(stft)
@@ -149,7 +179,22 @@ class AdvancedDSPProcessor:
             clean_mag = np.maximum(orig_mag - alpha * noise_mag, beta * orig_mag)
             orig_phase = np.angle(stft)
             clean_stft = clean_mag * np.exp(1j * orig_phase)
-            
+
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            librosa.display.specshow(orig_mag, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Trước Spectral Subtraction')
+
+            plt.subplot(1, 2, 2)
+            S_clean_db = librosa.amplitude_to_db(np.abs(clean_stft))
+            librosa.display.specshow(S_clean_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Sau Spectral Subtraction')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_3_spectral_subtraction_spectrogram.png'))
+            plt.close()
+
             # Export spectral subtraction result
             spectral_subtracted_stft = clean_stft
             spectral_subtracted_audio = librosa.istft(
@@ -164,6 +209,22 @@ class AdvancedDSPProcessor:
             wiener_filtered = self.harmonic_enhancer.adaptive_wiener_filter(
                 spectral_subtracted_stft, noise_psd
             )
+
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            S_before_db = librosa.amplitude_to_db(np.abs(spectral_subtracted_stft))
+            librosa.display.specshow(S_before_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Trước Wiener Filter')
+
+            plt.subplot(1, 2, 2)
+            S_filtered_db = librosa.amplitude_to_db(wiener_filtered)
+            librosa.display.specshow(S_filtered_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Sau Wiener Filter')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_4_wiener_filter_spectrogram.png'))
+            plt.close()
             
             # Export Wiener filtered result
             wiener_filtered_audio = librosa.istft(
@@ -179,10 +240,35 @@ class AdvancedDSPProcessor:
                 np.abs(wiener_filtered)
             )
             print(f"        F0 tracking: {len(f0_track)} frames estimated")
+            plt.figure(figsize=(10, 4))
+            times = np.linspace(0, len(f0_track) * 512 / self.sr, len(f0_track))
+            plt.plot(times, f0_track)
+            plt.title('Tần số cơ bản (F0) - Harmonic Enhancement')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Tần số (Hz)')
+            plt.savefig(os.path.join(self.chart_dir, '2_5_f0_track.png'))
+            plt.close()
             # Harmonic enhancement
             harmonic_enhanced = self.harmonic_enhancer.spectral_harmonic_enhancement(
                 wiener_filtered, f0_track
             )
+
+            # Spectrogram
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            S_before_db = librosa.amplitude_to_db(np.abs(wiener_filtered))
+            librosa.display.specshow(S_before_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Trước Harmonic Enhancement')
+
+            plt.subplot(1, 2, 2)
+            S_enhanced_db = librosa.amplitude_to_db(np.abs(harmonic_enhanced))
+            librosa.display.specshow(S_enhanced_db, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            plt.colorbar(format='%+2.0f dB')
+            plt.title('Spectrogram - Sau Harmonic Enhancement')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_5_harmonic_enhancement_spectrogram.png'))
+            plt.close()
             # Audio reconstruction with enhanced features
             enhanced_audio = librosa.istft(
                 harmonic_enhanced, 
@@ -194,11 +280,34 @@ class AdvancedDSPProcessor:
             
             #step 5: NOISE GATING
             gated_audio = self.noise_gate_processor.advanced_noise_gate(enhanced_audio)
+            # Dạng sóng
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            librosa.display.waveshow(enhanced_audio, sr=self.sr)
+            plt.title('Dạng sóng - Trước Noise Gating')
+
+            plt.subplot(1, 2, 2)
+            librosa.display.waveshow(gated_audio, sr=self.sr)
+            plt.title('Dạng sóng - Sau Noise Gating')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_6_noise_gating_waveform.png'))
+            plt.close()
             self._export_step_audio(gated_audio, "05_dsp_noise_gated", timestamp)
             # FINAL NORMALIZATION
             # Final normalization optimized for AI model input
             final_audio = librosa.util.normalize(gated_audio)
-            
+            plt.figure(figsize=(12, 4))
+            plt.subplot(1, 2, 1)
+            librosa.display.waveshow(gated_audio, sr=self.sr)
+            plt.title('Dạng sóng - Trước Normalization')
+
+            plt.subplot(1, 2, 2)
+            librosa.display.waveshow(final_audio, sr=self.sr)
+            plt.title('Dạng sóng - Sau Normalization')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_7_normalization_waveform.png'))
+            plt.close()
+
             # Export final preprocessed audio
             self._export_step_audio(final_audio, "05_preprocessed_for_ai", timestamp)
             
