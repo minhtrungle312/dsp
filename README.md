@@ -163,7 +163,7 @@ Hệ thống sử dụng các thiết lập được tối ưu cho fancam vocal 
 
 Tất cả các tham số có thể được điều chỉnh trong `config/dsp_config.py`.
 
-## 📊 Pipeline Xử lý Chi tiết
+## Pipeline Xử lý Chi tiết
 
 ```
 Input Video (MP4)
