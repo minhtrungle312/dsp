@@ -1,10 +1,10 @@
 # Hệ thống Nâng cao Chất lượng Giọng hát Fancam (Fancam Voice Enhancement System)
 
-🎤 **Nâng cao Giọng hát trong Video Fancam bằng AI và DSP**
+**Nâng cao Giọng hát trong Video Fancam bằng AI và DSP**
 
 Dự án này là một hệ thống tự động xử lý video fancam để cải thiện và nâng cao chất lượng giọng hát của nghệ sĩ. Hệ thống sử dụng kết hợp các kỹ thuật Xử lý Tín hiệu số (DSP) tiên tiến và mô hình AI (Spleeter) để tách và làm rõ giọng hát từ môi trường có nhiều tiếng ồn.
 
-## ✨ Tính năng chính
+## Tính năng chính
 
 - **Tách nguồn âm thanh bằng AI**: Sử dụng model Spleeter (2-stems-16kHz) để tách riêng giọng hát (vocals) và nhạc nền (accompaniment)
 - **Xử lý DSP tiên tiến**: Áp dụng pipeline DSP 5 bước gồm:
@@ -18,7 +18,7 @@ Dự án này là một hệ thống tự động xử lý video fancam để c�
 - **Debug và Phân tích**: Xuất tất cả các bước trung gian để phân tích và gỡ lỗi
 - **Tự động tối ưu**: Tự động điều chỉnh các tham số dựa trên đặc tính của từng file âm thanh
 
-## 🎯 Cách thức hoạt động
+## Cách thức hoạt động
 
 1. **Trích xuất Âm thanh**: Tách luồng âm thanh từ video đầu vào bằng FFmpeg
 2. **Tiền xử lý DSP**: Áp dụng pipeline xử lý tín hiệu số 5 bước:
@@ -35,7 +35,7 @@ Dự án này là một hệ thống tự động xử lý video fancam để c�
    - Chuẩn hóa RMS và chống clipping
 5. **Tích hợp Video**: Ghép âm thanh đã cải thiện vào video gốc
 
-## 📋 Yêu cầu hệ thống
+## Yêu cầu hệ thống
 
 ### Yêu cầu hệ thống
 - **Python**: 3.8 trở lên
@@ -57,7 +57,7 @@ Các thư viện quan trọng:
 - `numpy`, `scipy` - Tính toán khoa học
 - `ffmpeg-python` - Interface với FFmpeg
 
-## 🚀 Cài đặt
+## Cài đặt
 
 1. **Clone repository**
    ```bash
@@ -90,7 +90,7 @@ Các thư viện quan trọng:
    ffmpeg -version
    ```
 
-## 💻 Cách sử dụng
+## Cách sử dụng
 
 ### 1. Chế độ Tương tác (Interactive Mode) - Khuyến nghị cho người mới
 
@@ -133,7 +133,7 @@ python main.py -i "concert_fancam.mp4" -o "enhanced_fancam.mp4"
 python main.py -i "input.mp4" -o "output.mp4" --log-level DEBUG
 ```
 
-## 🎵 Định dạng được hỗ trợ
+## Định dạng được hỗ trợ
 
 ### Định dạng Video đầu vào
 - `.mp4` (khuyến nghị - tối ưu nhất)
@@ -148,7 +148,7 @@ python main.py -i "input.mp4" -o "output.mp4" --log-level DEBUG
 ### Định dạng đầu ra
 - `.mp4` với âm thanh AAC 192kbps (chất lượng cao)
 
-## 🔧 Cấu hình
+## Cấu hình
 
 Hệ thống sử dụng các thiết lập được tối ưu cho fancam vocal enhancement:
 
@@ -205,7 +205,7 @@ Hệ thống tự động xuất các file debug vào `output/dsp_steps/`:
 - `02b_ai_accompaniment_separated.wav`
 - `reconstruct_xx_*.wav` (các bước tái tạo)
 
-## 🎯 Mẹo Tối ưu và Lưu ý
+## Mẹo Tối ưu và Lưu ý
 
 1. **Chất lượng Input**: Sử dụng video có chất lượng cao nhất để có kết quả tốt nhất
 2. **Nội dung Âm thanh**: Hiệu quả tốt nhất với video có giọng hát rõ ràng và ít echo
@@ -215,13 +215,13 @@ Hệ thống tự động xuất các file debug vào `output/dsp_steps/`:
 6. **Memory Usage**: Giới hạn độ dài video nếu gặp vấn đề về RAM (khuyến nghị <10 phút mỗi lần)
 
 ### Các trường hợp sử dụng tối ưu
-- ✅ Fancam concert với giọng hát rõ ràng
-- ✅ Video live performance có nhiễu nền vừa phải  
-- ✅ Recording từ điện thoại với âm thanh trực tiếp
-- ❌ Video có quá nhiều reverb/echo
-- ❌ Audio đã bị nén quá mạnh hoặc có artifact
+- Fancam concert với giọng hát rõ ràng
+- Video live performance có nhiễu nền vừa phải  
+- Recording từ điện thoại với âm thanh trực tiếp
+- Video có quá nhiều reverb/echo
+- Audio đã bị nén quá mạnh hoặc có artifact
 
-## 🐛 Khắc phục Sự cố
+## Khắc phục Sự cố
 
 ### Các vấn đề thường gặp
 
@@ -263,7 +263,7 @@ Chế độ này sẽ:
 - Xuất tất cả file debug vào `output/dsp_steps/`
 - Ghi chi tiết lỗi vào `fancam_enhancement.log`
 
-## 📁 Cấu trúc Dự án Chi tiết
+## Cấu trúc Dự án Chi tiết
 
 ```
 fancam_noise_reduction/
@@ -326,7 +326,7 @@ fancam_noise_reduction/
 4. **SpleeterProcessor**: Interface với Spleeter AI cho source separation
 5. **AudioUtils**: Các utility cho audio/video I/O operations
 
-## 🤝 Đóng góp
+## Đóng góp
 
 Chúng tôi hoan nghênh các đóng góp! Vui lòng tạo pull requests hoặc mở issues cho bugs và feature requests.
 
@@ -337,17 +337,10 @@ Chúng tôi hoan nghênh các đóng góp! Vui lòng tạo pull requests hoặc 
 - Phát triển GUI interface
 - Thêm metrics để đánh giá chất lượng tự động
 
-## 📄 Giấy phép
-
-Dự án này được phát hành dưới giấy phép MIT - xem file LICENSE để biết chi tiết.
-
-## 🙏 Ghi nhận
+## Ghi nhận
 
 - **Spleeter** by Deezer cho AI-powered source separation
 - **Librosa** team cho audio analysis tools
 - **FFmpeg** project cho multimedia processing
 - **TensorFlow** team cho deep learning framework
 
----
-
-🎵 **Nâng cao chất lượng fancam của bạn với độ rõ giọng hát chuyên nghiệp!** 🎵
