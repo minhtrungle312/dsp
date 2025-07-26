@@ -179,10 +179,30 @@ class AdvancedDSPProcessor:
             clean_mag = np.maximum(orig_mag - alpha * noise_mag, beta * orig_mag)
             orig_phase = np.angle(stft)
             clean_stft = clean_mag * np.exp(1j * orig_phase)
+            y_clean = librosa.istft(clean_stft)
+            y_orig = librosa.istft(stft)
+
+            plt.figure(figsize=(12, 8))
+
+            plt.subplot(2, 2, 1)
+            plt.plot(np.linspace(0, len(y_orig)/self.sr, len(y_orig)), y_orig)
+            plt.title('Dạng sóng - Trước Spectral Subtraction')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+
+            plt.subplot(2, 2, 2)
+            plt.plot(np.linspace(0, len(y_clean)/self.sr, len(y_clean)), y_clean)
+            plt.title('Dạng sóng - Sau Spectral Subtraction')
+            plt.xlabel('Thời gian (s)')
+            plt.ylabel('Biên độ')
+            plt.tight_layout()
+            plt.savefig(os.path.join(self.chart_dir, '2_3_spectral_subtraction_wave.png'))
+            plt.close()
 
             plt.figure(figsize=(12, 4))
             plt.subplot(1, 2, 1)
-            librosa.display.specshow(orig_mag, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
+            origin = librosa.amplitude_to_db(np.abs(stft))
+            librosa.display.specshow(origin, sr=self.sr, hop_length=512, x_axis='time', y_axis='hz')
             plt.colorbar(format='%+2.0f dB')
             plt.title('Spectrogram - Trước Spectral Subtraction')
 
