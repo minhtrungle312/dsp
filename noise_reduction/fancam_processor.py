@@ -228,7 +228,7 @@ class FancamVoiceEnhancer:
             self.dsp_processor._export_step_audio(reconstructed_audio, "03_ai_reconstructed", timestamp)
 
             # export video
-            final_audio = preprocessed_audio
+            final_audio = reconstructed_audio
 
             # Tạo thư mục chart nếu chưa có
             chart_dir = "./output/chart"
@@ -556,7 +556,7 @@ class FancamVoiceEnhancer:
             
             # Bước 3: Tính RMS và threshold
             vocals_rms = np.sqrt(np.mean(vocals**2))
-            gate_threshold = max(vocals_rms * 0.01, vocals_rms * 0.02, 0.0001)
+            gate_threshold = max(vocals_rms * 0.02, 0.0001)
             
             print(f"    Reconstruct Debug - Vocals RMS: {vocals_rms:.6f}, Gate threshold: {gate_threshold:.6f}")
             
